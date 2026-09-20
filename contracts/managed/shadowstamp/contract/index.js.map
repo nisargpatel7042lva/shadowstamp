@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "file": "index.js",
+  "sourceRoot": "../../../../",
+  "sources": ["contracts/shadowstamp.compact", "compiler/standard-library.compact"],
+  "names": [],
+  "mappings": ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;EAuCA;;;;;;;;;;;;;MAkBA,AAAA,KAWC;;;;;;;;;;;;;;;;;;;;;;OAAA;MAID,AAAA,UAEC;;;;;cAFyB,WAAoB;;;;;;;;;;;;;;;;;;yCAApB,WAAoB;;;;;;;;;4CAApB,WAAoB;;;OAE7C;;;;;;;;;;GAjCA;EAFD;;;;;UAAY,IAAa;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;IAVzB;;;;;;;;;yEAAiC;IACjC;;;;;;;;;yEAAkC;IAClC;;;;;;;;;;yEAAqC;IASnC;;;;;;;2HAAmB,IAAE;;yEAAd;;;;;;;GACR;ECzCD,AAAA,kBAAA;oEAAA;;;EDmCA,AAAA,iBAAoC;;0DAApC,cAAoC;;;;;;;;;;;;;;GAAA;EAYpC,AAAA,kBAMC,4BANuB,QAAiB;;mCAGrC,QAAM;2DACN;;;;;;;;;;;gIAAO;GAEV;EAID,AAAA,QAWC;UAVO,QAAyB;UACzB,WAAmC;;gDAAP,QAAM;UAGlC,iBAAqC,GAAV,WAAS;qDAElC;;;;;;;;;;;4KAAc,iBAAe;;;;0HAAvB;;IAEd;;;;;;;;;;2HAAc,iBAAe;;;;;wEAAvB;UACN,KAAU;IAAV;;;;;;;;;;6FAAA,KAAU;;;;wEAAA;;GACX;EAID,AAAA,aAEC,4BAFyB,WAAoB;mCACrC;;;;;;;;;;;0JAAuB,WAAS;;;;wGAA1B;GACd;;;;;;;;;;;;;;;;IA7CD;qCAAA;;;;;;;;;;;0GAAiC;KAAA;IACjC;qCAAA;;;;;;;;;;;0GAAkC;KAAA;IAClC;;;;;uCAAA;;;;;;;;;;;;;;;;4GAAqC;;;;;;uCAArC;;;;;;;;;;;;4GAAqC;;;;;;;;;;;;;;uCAArC;;;;;;;;;;;;;;;4GAAqC;;;;;;;;;KAAA;;;;;;;;;;"
+}

@@ -1,0 +1,75 @@
+// ShadowStamp — privacy-preserving proof of presence on Midnight.
+//
+// ┌──────────────────────────────────────────────────────────────────────────┐
+// │ PUBLIC (on-chain ledger, visible to anyone)                              │
+// │   eventId     – identifier of the event this contract is stamping for    │
+// │   stampCount  – how many unique attendees have stamped in                │
+// │   stamps      – set of nullifiers; each is hash(secret, eventId)         │
+// │                 A nullifier proves "someone with a secret stamped once"  │
+// │                 but cannot be linked back to a person or a secret.       │
+// │                                                                          │
+// │ PRIVATE (witness, lives only on the attendee's machine)                  │
+// │   attendeeSecret – 32 random bytes the attendee keeps. It is fed into    │
+// │                    the ZK circuit but is NEVER written to the ledger and │
+// │                    never leaves the local proof generation.              │
+// │                                                                          │
+// │ WHAT IS PROVEN WITHOUT REVEALING                                         │
+// │   "I know a secret whose nullifier for this event is not yet in `stamps`"│
+// │   → one stamp per secret per event, zero identity leakage.              │
+// │                                                                          │
+// │ disclose() USAGE                                                         │
+// │   Only the derived nullifier and the constructor's event id are passed   │
+// │   through disclose(). The raw secret is never disclosed.                 │
+// └──────────────────────────────────────────────────────────────────────────┘
+
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+// ── Public ledger state ─────────────────────────────────────────────────────
+export ledger eventId: Bytes<32>;
+export ledger stampCount: Counter;
+export ledger stamps: Set<Bytes<32>>;
+
+// ── Private witness ────────────────────────────────────────────────────────
+// Supplied by the attendee's local private state; never stored on-chain.
+witness attendeeSecret(): Bytes<32>;
+
+// ── Constructor ─────────────────────────────────────────────────────────────
+// The event id is a public parameter chosen by the organizer at deploy time.
+constructor(id: Bytes<32>) {
+  eventId = disclose(id);
+}
+
+// ── Circuits ────────────────────────────────────────────────────────────────
+
+// Derive the attendee's nullifier for this event. Domain-separated so the
+// same secret produces unrelated nullifiers for different apps/events.
+circuit deriveNullifier(secret: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "shadowstamp:nullifier:v1"),
+    secret,
+    eventId,
+  ]);
+}
+
+// Stamp in to the event. Proves knowledge of a secret and records only its
+// nullifier. Rejects a second stamp from the same secret.
+export circuit stamp(): [] {
+  const secret = attendeeSecret();
+  const nullifier = deriveNullifier(secret);
+
+  // Deliberate disclosure: the nullifier is safe to publish, the secret is not.
+  const publicNullifier = disclose(nullifier);
+
+  assert(!stamps.member(publicNullifier), "ShadowStamp: already stamped for this event");
+
+  stamps.insert(publicNullifier);
+  stampCount.increment(1);
+}
+
+// Public read-only check: has a given nullifier already stamped?
+// The caller supplies a nullifier, not a secret, so nothing private is involved.
+export circuit hasStamped(nullifier: Bytes<32>): Boolean {
+  return stamps.member(disclose(nullifier));
+}

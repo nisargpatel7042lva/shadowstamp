@@ -2,11 +2,11 @@
   "name": "shadowstamp",
   "version": "1.0.0",
   "type": "module",
-  "description": "A Midnight Network application created with create-mn-app",
-  "author": "",
+  "description": "ShadowStamp \u2014 privacy-preserving proof of presence on Midnight (Compact contract, Level 1 of the Midnight Builder Challenge)",
+  "author": "nisargpatel7042lva",
   "license": "MIT",
   "scripts": {
-    "compile": "compact compile contracts/hello-world.compact contracts/managed/hello-world",
+    "compile": "compact compile +0.31.1 contracts/shadowstamp.compact contracts/managed/shadowstamp",
     "build": "npx tsc --noEmit || true",
     "setup": "npx tsx src/setup.ts",
     "deploy": "npx tsx src/deploy.ts",
@@ -44,5 +44,12 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "keywords": ["midnight", "blockchain", "zero-knowledge", "privacy"]
+  "keywords": [
+    "midnight",
+    "blockchain",
+    "zero-knowledge",
+    "privacy",
+    "compact",
+    "proof-of-presence"
+  ]
 }

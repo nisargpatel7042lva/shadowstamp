@@ -15,8 +15,9 @@ build/
 .env.test.local
 .env.production.local
 
-# Contract artifacts
-contracts/managed/
+# Contract artifacts are committed on purpose: the challenge requires the
+# generated managed/ directory (circuits + keys) to be present in the repo.
+# contracts/managed/
 
 # Deployment info
 deployment.json
