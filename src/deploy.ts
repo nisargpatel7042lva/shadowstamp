@@ -1,14 +1,14 @@
 /**
- * Deploy shadowstamp contract to a Midnight network (undeployed by default; use --network preview|preprod for public networks).
+ * Deploy the ShadowStamp contract to a Midnight network (undeployed by default;
+ * use --network preview|preprod for public networks).
+ *
+ * The contract constructor takes a public event id. Set SHADOWSTAMP_EVENT to
+ * choose the event label; it is hashed to a 32-byte id before deployment.
  *
  * Non-interactive: scaffold → npm run setup runs straight through.
- * No readline prompts, no .midnight-seed file.
  */
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice, recordDeployment } from './network';
 import { createWallet, persistWalletState, unshieldedToken, type WalletContext } from './wallet';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocket } from 'ws';
 import * as Rx from 'rxjs';
 
@@ -18,14 +18,23 @@ import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
-import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+import {
+  compiledContract,
+  zkConfigPath,
+  PRIVATE_STATE_ID,
+  DEFAULT_EVENT_LABEL,
+  eventIdFromLabel,
+  newSecret,
+  toHex,
+  type ShadowStampPrivateState,
+} from './contract';
 
 // @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
 
-// Identifier under which this contract's private state is stored. The
-// hello-world contract has no witnesses, so its private state is empty ({}).
-const PRIVATE_STATE_ID = 'helloWorldPrivateState';
+// Public constructor argument: which event this deployment stamps for.
+const EVENT_LABEL = process.env.SHADOWSTAMP_EVENT?.trim() || DEFAULT_EVENT_LABEL;
+const EVENT_ID = eventIdFromLabel(EVENT_LABEL);
 
 // Upper bound on the DUST wait. A healthy local devnet produces DUST within
 // seconds of registration; anything approaching this means the node, the
@@ -74,24 +83,6 @@ async function waitForProofServer(maxAttempts = 60, delayMs = 2000): Promise<boo
   return false;
 }
 
-// ─── Compiled contract loading ─────────────────────────────────────────────────
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const zkConfigPath = path.resolve(__dirname, '..', 'contracts', 'managed', 'hello-world');
-const contractPath = path.join(zkConfigPath, 'contract', 'index.js');
-
-if (!fs.existsSync(contractPath)) {
-  console.error('\n❌ Contract not compiled! Run: npm run compile\n');
-  process.exit(1);
-}
-
-const HelloWorld = await import(pathToFileURL(contractPath).href);
-
-const compiledContract = CompiledContract.make('hello-world', HelloWorld.Contract).pipe(
-  CompiledContract.withVacantWitnesses,
-  CompiledContract.withCompiledFileAssets(zkConfigPath),
-);
-
 // ─── Providers ─────────────────────────────────────────────────────────────────
 
 async function createProviders(walletCtx: WalletContext) {
@@ -123,7 +114,7 @@ async function createProviders(walletCtx: WalletContext) {
 
   return {
     privateStateProvider: levelPrivateStateProvider({
-      privateStateStoreName: 'hello-world-state',
+      privateStateStoreName: 'shadowstamp-state',
       accountId,
       privateStoragePasswordProvider: () => privateStatePassword,
     }),
@@ -300,7 +291,10 @@ async function main() {
   await new Promise((r) => setTimeout(r, 6000));
   process.stdout.write(' done.\n');
 
+  console.log(`  Event label: ${EVENT_LABEL}`);
+  console.log(`  Event id:    ${toHex(EVENT_ID)}`);
   console.log('  Deploying contract...\n');
+  const initialPrivateState: ShadowStampPrivateState = { secret: newSecret() };
 
   // Fallback timing. The 6s pre-pause above handles the common case; this
   // loop covers genuine outliers (slow blocks, proof-server worker-pool
@@ -314,16 +308,15 @@ async function main() {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       // Midnight.js 4.1.x supplies private state via privateStateId +
-      // initialPrivateState (empty here — the hello-world contract has no
-      // witnesses). args is the contract constructor's arguments: empty for
-      // hello-world's no-arg constructor. (Statically-typed contracts can omit
-      // args entirely; this script loads the contract dynamically, so the
-      // conditional args type widens to any[] and an explicit [] is required.)
+      // initialPrivateState. The deployer gets a fresh attendee secret so it
+      // can stamp from the CLI straight away; the secret lives only in the
+      // local level-db private state store. args = the constructor's public
+      // event id.
       deployed = await deployContract(providers, {
         compiledContract: compiledContract as any,
-        args: [],
+        args: [EVENT_ID],
         privateStateId: PRIVATE_STATE_ID,
-        initialPrivateState: {},
+        initialPrivateState: initialPrivateState,
       });
       break;
     } catch (err: any) {

@@ -1,13 +1,14 @@
 /**
- * CLI for interacting with shadowstamp contract
+ * Interactive CLI for the deployed ShadowStamp contract.
+ *
+ *   1. Stamp in           – runs the `stamp` circuit with your private secret
+ *   2. Check a nullifier  – runs `hasStamped` (public, no secret involved)
+ *   3. View ledger        – reads public state straight from the indexer
+ *   4. Show my nullifier  – derived locally; useful for checking option 2
  */
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocket } from 'ws';
-import { Buffer } from 'buffer';
 
 // Midnight SDK imports
 import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
@@ -17,15 +18,20 @@ import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-pri
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
 import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice, getDeployment } from './network';
 import { createWallet, persistWalletState, unshieldedToken, type WalletContext } from './wallet';
-import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+import {
+  ShadowStamp,
+  compiledContract,
+  zkConfigPath,
+  PRIVATE_STATE_ID,
+  newSecret,
+  toHex,
+  fromHex,
+  type ShadowStampPrivateState,
+} from './contract';
 
 // Enable WebSocket for GraphQL subscriptions
 // @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
-
-// Must match the privateStateId used at deploy time so the CLI reconnects to
-// the same private state. The hello-world contract has no witnesses (empty state).
-const PRIVATE_STATE_ID = 'helloWorldPrivateState';
 
 const { network, config: networkConfig } = resolveNetwork();
 const WALLET = getOrCreateWallet(network);
@@ -34,25 +40,6 @@ const SEED = WALLET.seed;
   const notice = formatWalletBackupNotice(WALLET, network);
   if (notice) console.log(notice);
 }
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const zkConfigPath = path.resolve(__dirname, '..', 'contracts', 'managed', 'hello-world');
-
-// Load compiled contract
-const contractPath = path.join(zkConfigPath, 'contract', 'index.js');
-
-// Check if contract is compiled
-if (!fs.existsSync(contractPath)) {
-  console.error('\n❌ Contract not compiled! Run: npm run compile\n');
-  process.exit(1);
-}
-
-const HelloWorld = await import(pathToFileURL(contractPath).href);
-
-const compiledContract = CompiledContract.make('hello-world', HelloWorld.Contract).pipe(
-  CompiledContract.withVacantWitnesses,
-  CompiledContract.withCompiledFileAssets(zkConfigPath),
-);
 
 // ─── Providers ─────────────────────────────────────────────────────────────────
 
@@ -85,7 +72,7 @@ async function createProviders(walletCtx: WalletContext) {
 
   return {
     privateStateProvider: levelPrivateStateProvider({
-      privateStateStoreName: 'hello-world-state',
+      privateStateStoreName: 'shadowstamp-state',
       accountId,
       privateStoragePasswordProvider: () => privateStatePassword,
     }),
@@ -157,52 +144,65 @@ async function main() {
     console.log('  Connecting to contract...');
     const providers = await createProviders(walletCtx);
 
+    // If this machine already holds private state for the contract it is
+    // reused; otherwise a fresh secret is generated (new attendee).
+    const initialPrivateState: ShadowStampPrivateState = { secret: newSecret() };
     const deployed: any = await findDeployedContract(providers, {
       compiledContract: compiledContract as any,
       contractAddress: deployment.address,
       privateStateId: PRIVATE_STATE_ID,
-      initialPrivateState: {},
+      initialPrivateState,
     });
 
     console.log('  ✅ Connected!\n');
+
+    const readLedger = async () => {
+      const contractState = await providers.publicDataProvider.queryContractState(deployment.address);
+      return contractState ? ShadowStamp.ledger(contractState.data) : null;
+    };
 
     // Interactive CLI loop
     let running = true;
     while (running) {
       console.log('─── Menu ───────────────────────────────────────────────────────');
-      console.log('  1. Store a message');
-      console.log('  2. Read current message');
-      console.log('  3. Check wallet balance');
-      console.log('  4. Exit\n');
+      console.log('  1. Stamp in (private secret → public nullifier)');
+      console.log('  2. Check whether a nullifier has stamped');
+      console.log('  3. View public ledger state');
+      console.log('  4. Check wallet balance');
+      console.log('  5. Exit\n');
 
       const choice = await rl.question('  Your choice: ');
 
       switch (choice.trim()) {
         case '1': {
-          const message = await rl.question('  Enter your message: ');
-          console.log('\n  Submitting transaction (this may take 30-60 seconds)...');
+          console.log('\n  Generating proof and submitting `stamp` (this may take 30-60 seconds)...');
           try {
-            const tx = await deployed.callTx.storeMessage(message);
-            console.log(`\n  ✅ Message stored: "${message}"`);
+            const tx = await deployed.callTx.stamp();
+            console.log('\n  ✅ Stamped! Only your nullifier was published — your secret stayed local.');
             console.log(`  Transaction ID: ${tx.public.txId}`);
             console.log(`  Block height: ${tx.public.blockHeight}\n`);
           } catch (error) {
-            console.error('\n  ❌ Failed:', error instanceof Error ? error.message : error);
+            const msg = error instanceof Error ? error.message : String(error);
+            if (msg.includes('already stamped')) {
+              console.log('\n  ⚠ This secret has already stamped for this event (double-stamp rejected by the circuit).\n');
+            } else {
+              console.error('\n  ❌ Failed:', msg);
+            }
           }
           break;
         }
 
         case '2': {
-          console.log('\n  Reading message from blockchain...');
+          const hex = (await rl.question('  Nullifier (64 hex chars): ')).trim();
+          if (!/^(0x)?[0-9a-fA-F]{64}$/.test(hex)) {
+            console.log('\n  ❌ Expected a 32-byte hex string.\n');
+            break;
+          }
+          console.log('\n  Running `hasStamped` (proof + submit, 30-60 seconds)...');
           try {
-            const contractState = await providers.publicDataProvider.queryContractState(deployment.address);
-            if (contractState) {
-              const ledgerState = HelloWorld.ledger(contractState.data);
-              const message = Buffer.from(ledgerState.message).toString();
-              console.log(`\n  📋 Current message: "${message}"\n`);
-            } else {
-              console.log('\n  📋 No message found (contract state empty)\n');
-            }
+            const tx = await deployed.callTx.hasStamped(fromHex(hex));
+            console.log(`\n  📋 hasStamped = ${tx.private?.result ?? tx.result}`);
+            console.log(`  Transaction ID: ${tx.public.txId}\n`);
           } catch (error) {
             console.error('\n  ❌ Failed:', error instanceof Error ? error.message : error);
           }
@@ -210,6 +210,25 @@ async function main() {
         }
 
         case '3': {
+          console.log('\n  Reading public ledger from the indexer...');
+          try {
+            const l = await readLedger();
+            if (!l) {
+              console.log('\n  📋 Contract state not found yet.\n');
+              break;
+            }
+            console.log(`\n  eventId:    ${toHex(l.eventId)}`);
+            console.log(`  stampCount: ${l.stampCount}`);
+            console.log(`  stamps (${l.stamps.size()}):`);
+            for (const n of l.stamps) console.log(`    - ${toHex(n)}`);
+            console.log('');
+          } catch (error) {
+            console.error('\n  ❌ Failed:', error instanceof Error ? error.message : error);
+          }
+          break;
+        }
+
+        case '4': {
           console.log('\n  Checking balance...');
           const currentState = await walletCtx.wallet.waitForSyncedState();
           const currentBalance = currentState.unshielded.balances[unshieldedToken().raw] ?? 0n;
@@ -219,13 +238,13 @@ async function main() {
           break;
         }
 
-        case '4':
+        case '5':
           running = false;
           console.log('\n  👋 Goodbye!\n');
           break;
 
         default:
-          console.log('\n  ❌ Invalid choice. Please enter 1-4.\n');
+          console.log('\n  ❌ Invalid choice. Please enter 1-5.\n');
       }
     }
 
