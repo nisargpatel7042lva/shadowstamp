@@ -12,10 +12,15 @@ Toolchain set up · first Compact contract written, tested and compiled · deplo
 | Network  | Address                          |
 |----------|----------------------------------|
 | Preview  | _not deployed_                   |
-| Preprod  | `PASTE_PREPROD_ADDRESS`          |
+| Preprod  | `3fc59ebb01af0b8cf0dc1b175eb0918cbf7ad25ab3789149096142f8de30858a` |
 
-Deployed constructor argument (public event id):
-`SHADOWSTAMP_EVENT=midnight-builder-challenge-l1` → `eventId = sha256("shadowstamp:event:midnight-builder-challenge-l1")`.
+Deployed 2026-09-21 from wallet `mn_addr_preprod1pgdrm5cacc88hhkfz7rux44qswynnffvcwgtyurnqpsqq9elle6qs2jvhk`.
+
+Constructor argument (public event id):
+`SHADOWSTAMP_EVENT=midnight-builder-challenge-l1` → `eventId = sha256("shadowstamp:event:midnight-builder-challenge-l1")`
+= `6bb87f0ce9cbaaf5cc5f740563ce4816ce7df147c9ac1455d9cf8abd2e14f587`
+
+Verified on-chain with `npm run test:e2e` (reads `eventId` and `stampCount` back from the Preprod indexer).
 
 ---
 
@@ -271,9 +276,9 @@ stamping via wallet, organiser dashboards, and selective-disclosure proofs
 - [x] Contract compiles via `compact compile`
 - [x] `managed/` directory present (circuits + keys)
 - [x] Passing test suite (10 tests)
-- [ ] Contract deployed to Preprod with visible address
+- [x] Contract deployed to Preprod with visible address
 - [x] README: setup instructions, public state vs private witness, initial idea
-- [ ] Screenshots: compile output, deployed address
+- [x] Screenshots: compile output, tests, deployed address
 - [x] ≥ 5 meaningful commits
 
 ---
