@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.vite/
+# copied from ../contracts/managed/shadowstamp by `npm run sync-managed`
+public/keys/
+public/zkir/
+.vercel/

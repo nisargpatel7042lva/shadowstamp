@@ -1,0 +1,42 @@
+{
+  "name": "shadowstamp-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ShadowStamp web UI: Lace wallet connect + stamp circuit call on Midnight Preprod",
+  "scripts": {
+    "sync-managed": "node scripts/sync-managed.mjs",
+    "dev": "npm run sync-managed && vite",
+    "build": "npm run sync-managed && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "0.16.0",
+    "@midnight-ntwrk/dapp-connector-api": "4.0.1",
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-fetch-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+    "buffer": "^6.0.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "semver": "^7.8.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@types/semver": "^7.7.1",
+    "@vitejs/plugin-react": "^6.0.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.14",
+    "vite-plugin-wasm": "^3.6.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
