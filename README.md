@@ -424,6 +424,7 @@ What it shows, in order:
 | `compact compile` — circuits listed | ![compile output](docs/screenshots/compile.png) |
 | Tests passing | ![tests](docs/screenshots/tests.png) |
 | Contract deployed on Preprod with address | ![deploy output](docs/screenshots/deploy.png) |
+| The live dApp reading Preprod state | ![dApp](docs/screenshots/ui-live.png) |
 
 ---
 
