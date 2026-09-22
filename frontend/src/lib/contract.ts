@@ -8,8 +8,8 @@
  */
 import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
 import { CompactTypeBytes, CompactTypeVector, persistentHash } from '@midnight-ntwrk/compact-runtime';
-import * as ShadowStamp from '../../../contracts/managed/shadowstamp/contract/index.js';
-import type { Contract, Ledger, Witnesses } from '../../../contracts/managed/shadowstamp/contract/index.js';
+import * as ShadowStamp from '../generated/shadowstamp/contract/index.js';
+import type { Contract, Ledger, Witnesses } from '../generated/shadowstamp/contract/index.js';
 
 export const CONTRACT_NAME = 'shadowstamp';
 export const PRIVATE_STATE_ID = 'shadowstampPrivateState';

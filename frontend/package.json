@@ -9,7 +9,7 @@
     "dev": "npm run sync-managed && vite",
     "build": "npm run sync-managed && tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "npm run sync-managed && tsc --noEmit"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
