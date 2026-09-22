@@ -5,3 +5,5 @@ dist/
 public/keys/
 public/zkir/
 .vercel/
+# Public build config (network id, contract address). No secrets live here.
+!.env
