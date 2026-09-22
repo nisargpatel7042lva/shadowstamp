@@ -62,6 +62,16 @@ type Deployed = FoundContract<ShadowStampContract>;
 
 const LEDGER_POLL_MS = 12_000;
 
+/**
+ * The indexer provider defaults its WebSocket implementation to
+ * `isomorphic-ws`'s named `WebSocket` export, which does not exist in the
+ * browser build (that file only has a default export). Left unset, GraphQL
+ * subscriptions — which is how the SDK waits for a transaction to finalize —
+ * would be constructed with `undefined`. Pass the browser's own WebSocket.
+ */
+const publicDataProvider = (queryUrl: string, subscriptionUrl: string) =>
+  indexerPublicDataProvider(queryUrl, subscriptionUrl, WebSocket as never);
+
 export function useMidnight() {
   const [wallet, setWallet] = useState<WalletState>({ status: 'disconnected' });
   const [contract, setContract] = useState<ContractState>({ status: 'idle' });
@@ -81,7 +91,7 @@ export function useMidnight() {
     if (!CONTRACT_ADDRESS) return;
     const uri = indexerUri ?? `https://indexer.${NETWORK_ID}.midnight.network/api/v4/graphql`;
     const ws = indexerWsUri ?? `wss://indexer.${NETWORK_ID}.midnight.network/api/v4/graphql/ws`;
-    const pdp = indexerPublicDataProvider(uri, ws);
+    const pdp = publicDataProvider(uri, ws);
     const state = await pdp.queryContractState(CONTRACT_ADDRESS);
     if (!state) return;
     const l = readLedger(state.data);
@@ -155,7 +165,7 @@ export function useMidnight() {
         privateStateProvider,
         zkConfigProvider,
         proofProvider,
-        publicDataProvider: indexerPublicDataProvider(session.indexerUri, session.indexerWsUri),
+        publicDataProvider: publicDataProvider(session.indexerUri, session.indexerWsUri),
         walletProvider,
         midnightProvider,
       } as never;
