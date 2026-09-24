@@ -53,5 +53,8 @@
     "privacy",
     "compact",
     "proof-of-presence"
-  ]
+  ],
+  "overrides": {
+    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
+  }
 }

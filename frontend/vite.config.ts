@@ -43,6 +43,17 @@ export default defineConfig({
     ],
   },
   resolve: {
+    // The Midnight WASM runtime keeps class identities inside its module
+    // instance: a StateValue built by one copy fails an `instanceof` check in
+    // another with "expected instance of StateValue". compact-runtime accepts
+    // ^3.0.0 while midnight-js-protocol pins 3.0.0 exactly, so npm is happy to
+    // install two copies. package.json `overrides` pins the version; this
+    // guarantees the bundler collapses it to a single module either way.
+    dedupe: [
+      '@midnight-ntwrk/onchain-runtime-v3',
+      '@midnight-ntwrk/compact-runtime',
+      '@midnight-ntwrk/ledger-v8',
+    ],
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.wasm'],
     mainFields: ['browser', 'module', 'main'],
   },
