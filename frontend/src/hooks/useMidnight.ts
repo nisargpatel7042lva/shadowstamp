@@ -18,7 +18,8 @@ import { toHex as sdkToHex, fromHex as sdkFromHex } from '@midnight-ntwrk/midnig
 import { Transaction, type FinalizedTransaction, type TransactionId } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import type { UnboundTransaction } from '@midnight-ntwrk/midnight-js-types';
 
-import { CONTRACT_ADDRESS, NETWORK_ID } from '../lib/config';
+import { CONTRACT_ADDRESS } from '../lib/config';
+import { NETWORK_ID } from '../lib/network';
 import { connectLace, WalletError, type WalletSession } from '../lib/wallet';
 import { localStoragePrivateStateProvider } from '../lib/private-state';
 import {

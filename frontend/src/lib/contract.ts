@@ -6,6 +6,9 @@
  *   their own (public, unlinkable) nullifier and check membership without a
  *   transaction. It is a pure function of (secret, eventId).
  */
+// Side-effect import: configures the SDK's global network id before the
+// CompiledContract below is built. See ./network.
+import './network';
 import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
 import { CompactTypeBytes, CompactTypeVector, persistentHash } from '@midnight-ntwrk/compact-runtime';
 import * as ShadowStamp from '../generated/shadowstamp/contract/index.js';
