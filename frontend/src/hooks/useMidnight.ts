@@ -126,6 +126,10 @@ export function useMidnight() {
   const connect = useCallback(async () => {
     setWallet({ status: 'connecting' });
     setContract({ status: 'idle' });
+    // Tracked locally: reading `wallet.status` here would see the value
+    // captured when this callback was created, not the live one, so a failure
+    // after the wallet connected would be misreported as a wallet error.
+    let walletReady = false;
     try {
       const session = await connectLace(NETWORK_ID);
 
@@ -171,6 +175,7 @@ export function useMidnight() {
         midnightProvider,
       } as never;
 
+      walletReady = true;
       setWallet({ status: 'connected', session, prover });
       void refreshLedger(session.indexerUri, session.indexerWsUri);
 
@@ -191,14 +196,15 @@ export function useMidnight() {
       const err = e instanceof WalletError ? e : new WalletError('unknown', e instanceof Error ? e.message : String(e), e);
       deployedRef.current = null;
       providersRef.current = null;
-      if (err.kind === 'unknown' && wallet.status === 'connected') {
+      if (walletReady) {
+        // Lace is connected; the failure was joining the contract.
         setContract({ status: 'error', error: err.message });
       } else {
         setWallet({ status: 'disconnected', error: err });
         setContract({ status: 'idle' });
       }
     }
-  }, [privateStateProvider, refreshLedger, wallet.status]);
+  }, [privateStateProvider, refreshLedger]);
 
   const disconnect = useCallback(() => {
     // The connector API has no explicit disconnect; the dApp drops its handle.

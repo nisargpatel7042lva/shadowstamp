@@ -36,6 +36,7 @@ export default function App() {
             iAmStamped={m.iAmStamped}
             onStamp={m.stampIn}
             onReset={m.resetStamp}
+            onRetryJoin={m.connect}
           />
           <PrivacyPanel myNullifier={m.myNullifier} iAmStamped={m.iAmStamped} hasSecret={m.myNullifier !== null} />
           <LedgerView ledger={m.ledger} myNullifier={m.myNullifier} onRefresh={() => void m.refreshLedger()} />

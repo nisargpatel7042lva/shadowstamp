@@ -8,9 +8,10 @@ interface Props {
   iAmStamped: boolean | null;
   onStamp: () => void;
   onReset: () => void;
+  onRetryJoin: () => void;
 }
 
-export function CircuitCall({ wallet, contract, stamp, iAmStamped, onStamp, onReset }: Props) {
+export function CircuitCall({ wallet, contract, stamp, iAmStamped, onStamp, onReset, onRetryJoin }: Props) {
   const ready = wallet.status === 'connected' && contract.status === 'joined';
   const busy = stamp.status === 'proving' || stamp.status === 'submitting';
 
@@ -37,6 +38,16 @@ export function CircuitCall({ wallet, contract, stamp, iAmStamped, onStamp, onRe
           Generate proof &amp; submit
         </Step>
       </div>
+
+      {contract.status === 'error' && (
+        <div className="status status--err" role="alert">
+          <div>
+            <strong>Could not join the contract.</strong>
+            <span className="mono small">{contract.error}</span>
+          </div>
+          <button className="btn btn--ghost" onClick={onRetryJoin}>Retry</button>
+        </div>
+      )}
 
       {stamp.status === 'idle' && (
         <button className="btn btn--primary btn--big" onClick={onStamp} disabled={!ready}>
