@@ -16,6 +16,20 @@ Open it with the [Midnight Lace](https://chromewebstore.google.com/search/midnig
 installed and set to **Preprod**. The public ledger (event id, stamp count, nullifier set) loads
 without a wallet; connecting Lace is only needed to stamp in.
 
+> **Stamping also needs a proof server running on your own machine.** Lace generates the
+> zero-knowledge proof through a prover at `http://localhost:6300`, so the hosted demo still
+> proves locally — the witness never leaves your computer, which is the whole point. Start one
+> with Docker before you stamp:
+>
+> ```bash
+> docker run -p 6300:6300 midnightntwrk/proof-server:8.1.0
+> # or, from a clone of this repo: npm run proof-server:start
+> ```
+>
+> If the browser console shows `POST http://localhost:6300/check net::ERR_CONNECTION_REFUSED`,
+> the proof server is not running (or not reachable from the browser — on Windows + WSL, start it
+> so the port is published on `0.0.0.0`).
+
 ---
 
 ## Contract Address
@@ -229,6 +243,7 @@ shadowstamp/
 | Compact toolchain | `compact` 0.5.x, compiler **0.31.1** | see Setup |
 | tNIGHT | a little | from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev), only needed to deploy or send txs |
 | Midnight Lace | connector API 4.x | browser extension, set to **Preprod** — needed for the web app |
+| Proof server | `midnightntwrk/proof-server:8.1.0` | must be listening on `localhost:6300` before stamping, in the browser as well as the CLI |
 
 > **Why compiler 0.31.1 and not latest?** The latest compiler (0.34) emits code
 > for `compact-runtime 0.19`, which pairs with the pre-release Midnight.js 5.
@@ -301,6 +316,8 @@ The frontend is a separate workspace in `frontend/`. It needs the compiled
 contract from step 5 above, and nothing else from the repo root.
 
 ```bash
+npm run proof-server:start  # from the repo root — Lace proves against localhost:6300
+
 cd frontend
 npm install                 # or: npm ci --legacy-peer-deps
 npm run dev                 # http://localhost:5173
