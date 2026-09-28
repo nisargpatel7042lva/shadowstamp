@@ -303,10 +303,17 @@ Use `--network preview` for Preview.
 ### Interact with the deployed contract
 
 ```bash
-npm run cli                 # stamp in / check a nullifier / view ledger / balance
+npm run stamp               # run the stamp circuit once, non-interactively
+npm run cli                 # interactive: stamp / check a nullifier / view ledger / balance
 npm run check-balance       # wallet balance
 npm run test:e2e            # read-only reconnect + ledger read from chain
 ```
+
+`npm run stamp` is the quickest way to prove the whole write path works —
+circuit, proof, fee balancing, signing and submission — with no wallet
+extension in the way. It prints the ledger before and after, so a failure
+tells you immediately whether the problem is the contract, the chain, or the
+browser. It needs the proof server running and a wallet holding DUST.
 
 ---
 
@@ -441,7 +448,7 @@ What it shows, in order:
 | `compact compile` — circuits listed | ![compile output](docs/screenshots/compile.png) |
 | Tests passing | ![tests](docs/screenshots/tests.png) |
 | Contract deployed on Preprod with address | ![deploy output](docs/screenshots/deploy.png) |
-| The live dApp reading Preprod state | ![dApp](docs/screenshots/ui-live.png) |
+| The live dApp reading Preprod state | ![dApp](docs/screenshots/ui-stamped.png) |
 
 ---
 
