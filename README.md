@@ -2,9 +2,13 @@
 
 > A privacy-preserving proof-of-presence contract on Midnight: attendees prove they were at an event exactly once, without revealing who they are.
 
-**Midnight Builder Challenge — 🌑 Level 1 · 🌒 Level 2**
+[![CI](https://github.com/nisargpatel7042lva/shadowstamp/actions/workflows/ci.yml/badge.svg)](https://github.com/nisargpatel7042lva/shadowstamp/actions/workflows/ci.yml)
+[![Pages](https://github.com/nisargpatel7042lva/shadowstamp/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/nisargpatel7042lva/shadowstamp/actions/workflows/deploy-pages.yml)
+
+**Midnight Builder Challenge — 🌑 Level 1 · 🌒 Level 2 · 🌓 Level 3**
 L1: toolchain, Compact contract, tests, deployed to Preprod.
 L2: React frontend wired to the contract with Lace wallet connect on Preprod.
+L3: **ShadowBallot** — anonymous ballots with publicly verifiable tallies, 27 tests, CI on every push.
 
 ---
 
@@ -34,10 +38,12 @@ without a wallet; connecting Lace is only needed to stamp in.
 
 ## Contract Address
 
-| Network  | Address                          |
-|----------|----------------------------------|
-| Preview  | _not deployed_                   |
-| Preprod  | `3fc59ebb01af0b8cf0dc1b175eb0918cbf7ad25ab3789149096142f8de30858a` |
+| Contract | Network | Address |
+|----------|---------|---------|
+| **ShadowBallot** (L3 — Private Voting) | Preprod | `67d201ff134f6a05d3a9db944a1c68a2ed0547fcd7b4fda353c4debc702d2259` |
+| **ShadowStamp** (L1 — proof of presence) | Preprod | `3fc59ebb01af0b8cf0dc1b175eb0918cbf7ad25ab3789149096142f8de30858a` |
+
+Both are live on Preprod and readable from the public indexer without a wallet.
 
 Deployed 2026-09-21 from wallet `mn_addr_preprod1pgdrm5cacc88hhkfz7rux44qswynnffvcwgtyurnqpsqq9elle6qs2jvhk`.
 
@@ -91,6 +97,54 @@ The web app (`frontend/`) is the attendee's side of that story:
 
 ---
 
+## Product Proposal — Private Voting
+
+**Chosen from the provided idea list: _Private Voting — anonymous ballots with
+publicly verifiable tallies._**
+
+Every voting system has to satisfy two demands that pull against each other.
+The result must be **auditable** — anyone should be able to check the count
+without trusting the organiser. And the ballot must be **secret** — nobody
+should be able to work out how a given person voted. Paper ballots resolve this
+with physical machinery: a sealed box, observers, a public count. Most online
+voting quietly gives up on one side, either publishing a voter roll alongside
+the votes or asking everyone to trust a tallying server.
+
+ShadowBallot resolves it with a zero-knowledge circuit instead of a ballot box.
+
+- Each voter holds a 32-byte **secret** on their own device.
+- Casting a ballot runs the `castVote` circuit locally. It publishes two
+  things: the **choice**, and a **nullifier** — `hash(domain, secret, pollId)`.
+- The chain increments the counter for that choice and inserts the nullifier
+  into a set. A second ballot from the same secret produces the same nullifier
+  and is rejected **inside the circuit**.
+
+The result is a tally anyone can add up and verify against the ballot count,
+where no ballot can be attributed to a person, a wallet, or that person's
+ballot in any other poll.
+
+**Who it is for.** DAOs voting on proposals without publishing a whale's
+position; a conference voting on talks without exposing attendee opinions; a
+union or co-op where a verifiable count matters and retaliation is a real risk.
+
+**Why Midnight.** The privacy is enforced by the compiler, not by convention.
+Compact refuses to write witness-derived data to the ledger unless the author
+marks it with `disclose()`, so "the secret cannot leak" is a property of the
+program rather than a promise in a README. The proof is generated on the
+voter's own machine; the network verifies it without ever seeing the input.
+
+**What ships in this level.** A deployed poll on Preprod, a web app that reads
+the tally without a wallet and casts ballots through Lace, 27 tests, and CI
+that compiles the circuits and runs those tests on every push.
+
+**Where it goes next.** The honest limitation today is eligibility: anyone who
+can pay a fee can vote once. The natural next step is gating on a Merkle root
+of registered voter commitments, so a voter proves membership of the roll
+without revealing which member they are — the same nullifier machinery, with
+an inclusion proof in front of it.
+
+---
+
 ## Privacy Model
 
 The contract source ([`contracts/shadowstamp.compact`](contracts/shadowstamp.compact))
@@ -140,6 +194,40 @@ export circuit stamp(): [] {
 `secret` itself is never passed to `disclose()`, so the compiler guarantees it
 cannot reach the public ledger.
 
+### ShadowBallot: the same machinery, one deliberate difference
+
+| | ShadowStamp | ShadowBallot |
+|---|---|---|
+| Public ledger | `eventId`, `stampCount`, `stamps` | `pollId`, `optionCount`, `tallies`, `ballots`, `voteCount`, `closed` |
+| Private witness | `attendeeSecret()` | `voterSecret()` |
+| Disclosed | the nullifier | the nullifier **and the choice** |
+| Proven without revealing | "I hold a secret that has not stamped" | "I hold a secret that has not voted" |
+
+The extra disclosure is the whole point. The choice has to be public for the
+tally to be verifiable — that is what makes the result trustworthy without
+trusting anyone. What stays hidden is **who** cast it:
+
+```compact
+export circuit castVote(choice: Uint<8>): [] {
+  assert(!closed, "ShadowBallot: poll is closed");
+
+  const publicChoice = disclose(choice);              // public, so the tally adds up
+  assert(publicChoice < optionCount, "ShadowBallot: option out of range");
+
+  const secret = voterSecret();                        // private witness
+  const nullifier = disclose(deriveNullifier(secret)); // the ONLY witness-derived disclosure
+
+  assert(!ballots.member(nullifier), "ShadowBallot: already voted in this poll");
+
+  ballots.insert(nullifier);
+  tallies.lookup(publicChoice).increment(1);
+  voteCount.increment(1);
+}
+```
+
+Because `pollId` is mixed into the hash, the same secret yields an unrelated
+nullifier in every poll — so participation cannot be correlated across votes.
+
 ---
 
 ## Privacy Claim
@@ -154,6 +242,13 @@ cannot reach the public ledger.
 > which wallet or person, and cannot link a nullifier to the same person's
 > nullifier at any other event — the event id is mixed into the hash, so the
 > same secret produces unrelated nullifiers across contracts.
+
+**For the poll**, an observer sees the tally, the set of nullifiers, and a
+valid proof behind each ballot. They cannot see any voter secret, cannot tell
+which nullifier cast which ballot, cannot link a nullifier to a wallet, and
+cannot correlate a voter across polls. They *can* verify the count themselves —
+the UI shows the check (`tallies sum to ballot count`) that anyone can repeat
+against the chain.
 
 **The observable privacy behaviour, in the UI:** the "What stays hidden" panel
 shows your secret only as `●●●●●●●●` — it is never rendered, logged, or sent
@@ -182,6 +277,15 @@ with zero identity disclosure.
 - **Midnight.js 4.1.1** — `findDeployedContract` + `callTx` for the circuit call,
   `FetchZkConfigProvider` for prover keys, `indexerPublicDataProvider` for public state
 - **Lace wallet** — connection, transaction balancing/signing, and (when available) local proving
+
+**Engineering (Level 3)**
+
+- **Vitest** — 27 tests running the compiled circuits in-process
+- **GitHub Actions** — `ci.yml` compiles both contracts with the pinned
+  toolchain, verifies the committed `managed/` output matches a fresh compile,
+  typechecks, runs the tests, and builds the frontend on every push
+- **Non-interactive scripts** — `npm run stamp`, `npm run vote`,
+  `npm run deploy:ballot` exercise the full write path without a browser
 
 ---
 
@@ -379,21 +483,22 @@ npm test
 ```
 
 ```
- ✓ tests/shadowstamp.test.ts (10 tests)
-   ✓ circuit logic
-     ✓ initialises with the disclosed event id and an empty stamp set
-     ✓ stamp() records exactly one nullifier and increments the counter
-     ✓ rejects a second stamp from the same secret (double-stamp protection)
-     ✓ hasStamped() answers true for a recorded nullifier and false otherwise
-   ✓ state transitions
-     ✓ two different attendees produce two distinct nullifiers and count = 2
-     ✓ the same secret yields the same nullifier, so state is idempotent across users
-     ✓ a different event id produces a different nullifier for the same secret
-   ✓ privacy boundary
-     ✓ the raw secret never appears in the public ledger
-     ✓ the serialised on-chain state contains no trace of the secret bytes
-     ✓ the secret stays in private state on the attendee side
+ ✓ tests/shadowstamp.test.ts  (10 tests)  circuit logic · state transitions · privacy boundary
+ ✓ tests/shadowballot.test.ts (17 tests)  circuit logic · state transitions ·
+                                          public verifiability · privacy boundary
+
+ Test Files  2 passed (2)
+      Tests  27 passed (27)
 ```
+
+![tests](docs/screenshots/tests-l3.png)
+
+The ballot suite covers the two halves of the design separately. **Public
+verifiability** asserts the tallies always sum to the ballot count and to the
+nullifier-set size — the audit an observer performs. **Privacy boundary**
+asserts no secret appears in the ledger or its serialised form, that a secret
+is not findable via `hasVoted`, and that the tally reveals the result without
+revealing who voted for what.
 
 The suite executes the real compiled circuits (`contracts/managed/shadowstamp/contract/index.js`)
 through `@midnight-ntwrk/compact-runtime` — the same code path the SDK runs before
@@ -420,24 +525,50 @@ stamping via wallet, organiser dashboards, and selective-disclosure proofs
 
 ---
 
+## CI/CD
+
+[![CI](https://github.com/nisargpatel7042lva/shadowstamp/actions/workflows/ci.yml/badge.svg)](https://github.com/nisargpatel7042lva/shadowstamp/actions/workflows/ci.yml)
+[![Pages](https://github.com/nisargpatel7042lva/shadowstamp/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/nisargpatel7042lva/shadowstamp/actions/workflows/deploy-pages.yml)
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and
+pull request:
+
+| Job | Does |
+|-----|------|
+| **contracts** | installs the Compact toolchain pinned to 0.31.1, compiles both contracts, **fails if the committed `managed/` output differs from a fresh compile**, typechecks, runs all 27 tests |
+| **frontend** | installs and builds the dApp, then asserts exactly **one** onchain-runtime WASM is bundled |
+
+Two of those checks exist because of bugs this project actually hit. The stale
+`managed/` check stops committed circuits drifting from their source. The WASM
+count check catches a duplicated runtime — two copies break class identity
+across the SDK boundary and surface as `expected instance of StateValue`, which
+cost a full debugging cycle in Level 2.
+
+[`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)
+publishes the frontend to GitHub Pages on every push to `main`.
+
+---
+
 ## Demo Video
 
 **[PASTE VIDEO LINK HERE]**
 
-What it shows, in order:
+What it shows, in order (target: 1 minute):
 
-1. **Connect Lace** — the connect button, Lace's approval prompt, then the
-   wallet address, `preprod` badge and prover badge appearing in the header.
-2. **Call the circuit** — pressing *Stamp in*, the "Generating zero-knowledge
-   proof…" state while the circuit runs locally, then Lace asking to sign.
-3. **On-chain result** — the transaction id and block height, and the new
-   nullifier appearing in the public ledger list marked *"yours — only you can
-   tell"*, with `stampCount` incremented.
-4. **The privacy point** — the "What stays hidden" panel: the secret shows only
-   as `●●●●●●●●` and never appears anywhere in the UI, the network tab, or the
-   chain; only the derived nullifier is public. Pressing *Stamp in* again is
-   rejected with *"already stamped"* — proof that the contract recognised the
-   secret without ever receiving it.
+1. **The live tally, no wallet** — the poll renders straight from the indexer
+   with the `✓ tally audited` badge. Anyone can verify the count; nobody had to
+   connect anything.
+2. **Connect Lace** — the wallet address and `preprod` badge appear in the
+   header.
+3. **Cast a ballot** — click an option, let *"Proving your ballot…"* sit on
+   screen while the circuit runs locally, then sign in Lace.
+4. **The result moves** — the tx id and block appear, the chosen option's bar
+   grows, the ballot count increments, and the audit badge still reads
+   `✓ tally audited`.
+5. **The privacy point** — the secret shows only as `●●●●●●●●` and appears
+   nowhere in the UI, the network tab, or the chain; only the nullifier is
+   public. Vote again and the circuit rejects it with *"already voted"* — the
+   contract recognised the secret **without ever receiving it**.
 
 ---
 
@@ -448,7 +579,9 @@ What it shows, in order:
 | `compact compile` — circuits listed | ![compile output](docs/screenshots/compile.png) |
 | Tests passing | ![tests](docs/screenshots/tests.png) |
 | Contract deployed on Preprod with address | ![deploy output](docs/screenshots/deploy.png) |
-| The live dApp reading Preprod state | ![dApp](docs/screenshots/ui-stamped.png) |
+| The live dApp: anonymous ballot with an audited tally | ![ballot](docs/screenshots/ui-ballot.png) |
+| 27 tests passing | ![tests](docs/screenshots/tests-l3.png) |
+| The attendance-stamp ledger (Level 1/2) | ![dApp](docs/screenshots/ui-stamped.png) |
 
 ---
 
@@ -478,6 +611,31 @@ What it shows, in order:
 - [x] File structure matches the spec (`components/`, `hooks/`, `App.tsx`, `main.tsx`)
 - [ ] Demo video recorded and linked
 - [x] ≥ 8 meaningful commits
+
+---
+
+## Level 3 Checklist
+
+- [x] Fully functional dApp using Midnight's privacy model — anonymous ballots,
+      publicly verifiable tallies, deployed and voted on Preprod
+- [x] Minimum 3 tests passing — **27** across two contracts
+- [x] CI/CD pipeline with passing runs — compile + test on every push, badges above
+- [x] Idea from the provided list — **Private Voting** (see Product Proposal)
+- [x] Complete README with a privacy model section
+- [x] Live demo link
+- [x] Screenshot of test output
+- [x] Minimum 10 meaningful commits
+- [ ] Demo video (1 minute) recorded and linked
+
+**Verified on-chain.** The poll was deployed and a ballot cast from the
+non-interactive scripts before the UI was wired, so the write path is proven
+independently of the browser:
+
+```
+poll  67d201ff134f6a05d3a9db944a1c68a2ed0547fcd7b4fda353c4debc702d2259
+vote  tx 0093a90e4f5eb35f91e0352f84cbf8b03d7ecbe5500e3b4d0afd866ca1a3fad34b
+      block 2770709 · SucceedEntirely · tally 0 -> 1 · audit ✓
+```
 
 ---
 
