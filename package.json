@@ -12,6 +12,8 @@
     "build": "npx tsc --noEmit || true",
     "setup": "npx tsx src/setup.ts",
     "deploy": "npx tsx src/deploy.ts",
+    "deploy:ballot": "npx tsx scripts/deploy-ballot.ts",
+    "vote": "npx tsx scripts/vote.ts",
     "cli": "npx tsx src/cli.ts",
     "stamp": "npx tsx scripts/stamp.ts",
     "check-balance": "npx tsx src/check-balance.ts",
