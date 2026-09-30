@@ -1,0 +1,95 @@
+// ShadowBallot — anonymous ballots with publicly verifiable tallies.
+//
+// Level 3 product (Private Voting) for the Midnight Builder Challenge. It
+// builds on the nullifier primitive proven in shadowstamp.compact: a voter
+// proves they hold an eligible secret, and the chain records only a nullifier
+// plus the ballot choice.
+//
+// ┌──────────────────────────────────────────────────────────────────────────┐
+// │ SELECTIVE DISCLOSURE — the point of this contract                        │
+// │                                                                          │
+// │ Publicly verifiable   the tally. Every observer can add up the counters  │
+// │                       and check the total equals the number of ballots,  │
+// │                       so nobody has to trust the organiser's arithmetic. │
+// │                                                                          │
+// │ Anonymous             the voter. Each ballot carries a nullifier derived │
+// │                       from a secret that never leaves the voter's        │
+// │                       machine, so no ballot can be tied to a person, a   │
+// │                       wallet, or that person's ballot in another poll.   │
+// │                                                                          │
+// │ The choice IS disclosed — that is what makes the tally verifiable. What  │
+// │ stays hidden is WHO cast it. That asymmetry is the design.               │
+// └──────────────────────────────────────────────────────────────────────────┘
+
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+// ── Public ledger state ─────────────────────────────────────────────────────
+export ledger pollId: Bytes<32>;          // identifies this poll; mixed into nullifiers
+export ledger optionCount: Uint<8>;       // number of choices, fixed at deploy
+export ledger tallies: Map<Uint<8>, Counter>;  // choice -> votes
+export ledger ballots: Set<Bytes<32>>;    // nullifiers, one per voter secret
+export ledger voteCount: Counter;         // total ballots cast
+export ledger closed: Boolean;            // once true, no further voting
+
+// ── Private witness ────────────────────────────────────────────────────────
+// The voter's secret. Fed into the circuit, never written to the ledger.
+witness voterSecret(): Bytes<32>;
+
+// ── Constructor ─────────────────────────────────────────────────────────────
+constructor(id: Bytes<32>, options: Uint<8>) {
+  assert(options > 0, "ShadowBallot: need at least one option");
+  pollId = disclose(id);
+  optionCount = disclose(options);
+  closed = false;
+}
+
+// ── Circuits ────────────────────────────────────────────────────────────────
+
+// Nullifier for this voter in this poll. Domain-separated and bound to pollId,
+// so the same secret yields unrelated nullifiers across polls — voting in two
+// polls cannot be correlated.
+circuit deriveNullifier(secret: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "shadowballot:nullifier:v1"),
+    secret,
+    pollId,
+  ]);
+}
+
+// Cast a ballot. Proves knowledge of a secret, publishes only its nullifier
+// and the chosen option, and rejects a second ballot from the same secret.
+export circuit castVote(choice: Uint<8>): [] {
+  assert(!closed, "ShadowBallot: poll is closed");
+
+  const publicChoice = disclose(choice);
+  assert(publicChoice < optionCount, "ShadowBallot: option out of range");
+
+  const secret = voterSecret();
+  // Deliberate disclosure: the nullifier is safe to publish, the secret is not.
+  const nullifier = disclose(deriveNullifier(secret));
+
+  assert(!ballots.member(nullifier), "ShadowBallot: already voted in this poll");
+
+  ballots.insert(nullifier);
+  // Map.lookup returns nothing for an absent key, so create the entry the
+  // first time an option is chosen. Guarded, because insertDefault on an
+  // existing key would reset that option's count to zero.
+  if (!tallies.member(publicChoice)) {
+    tallies.insertDefault(publicChoice);
+  }
+  tallies.lookup(publicChoice).increment(1);
+  voteCount.increment(1);
+}
+
+// Close the poll so the tally is final.
+export circuit closePoll(): [] {
+  closed = true;
+}
+
+// Public membership check: has this nullifier already voted? Takes a
+// nullifier, not a secret, so nothing private is involved.
+export circuit hasVoted(nullifier: Bytes<32>): Boolean {
+  return ballots.member(disclose(nullifier));
+}

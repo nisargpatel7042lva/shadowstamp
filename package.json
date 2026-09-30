@@ -6,7 +6,9 @@
   "author": "nisargpatel7042lva",
   "license": "MIT",
   "scripts": {
-    "compile": "compact compile +0.31.1 contracts/shadowstamp.compact contracts/managed/shadowstamp",
+    "compile": "npm run compile:stamp && npm run compile:ballot",
+    "compile:stamp": "compact compile +0.31.1 contracts/shadowstamp.compact contracts/managed/shadowstamp",
+    "compile:ballot": "compact compile +0.31.1 contracts/shadowballot.compact contracts/managed/shadowballot",
     "build": "npx tsc --noEmit || true",
     "setup": "npx tsx src/setup.ts",
     "deploy": "npx tsx src/deploy.ts",
