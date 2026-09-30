@@ -1,0 +1,97 @@
+# Compile the Compact contracts and run the test suites on every push and PR.
+#
+# The compiler is installed from the official release channel and pinned to
+# 0.31.1 — the version whose output targets compact-runtime 0.16, which is what
+# the stable Midnight.js 4.1.1 in this repo expects. Compiling here (rather than
+# trusting the committed managed/ output) means a contract change that does not
+# build cannot reach main.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Compile contracts and run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Compact toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Pin compiler 0.31.1
+        run: compact update 0.31.1
+
+      - name: Report versions
+        run: |
+          node --version
+          compact --version
+          compact compile --version
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Compile contracts
+        run: npm run compile
+
+      - name: Fail if the committed managed/ output is stale
+        run: |
+          if ! git diff --quiet -- contracts/managed; then
+            echo "::error::contracts/managed is out of date — run 'npm run compile' and commit the result."
+            git diff --stat -- contracts/managed
+            exit 1
+          fi
+          echo "committed circuits match a fresh compile"
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test
+
+  frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci --legacy-peer-deps
+
+      - name: Typecheck and build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Check the runtime WASM was not duplicated
+        working-directory: frontend
+        run: |
+          count=$(find dist/assets -name 'midnight_onchain_runtime_wasm_bg-*.wasm' | wc -l)
+          echo "onchain runtime wasm copies: $count"
+          if [ "$count" -ne 1 ]; then
+            echo "::error::expected exactly one onchain-runtime WASM, found $count."
+            echo "Two copies break class identity across the SDK boundary ('expected instance of StateValue')."
+            exit 1
+          fi
