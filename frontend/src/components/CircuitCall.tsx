@@ -18,7 +18,7 @@ export function CircuitCall({ wallet, contract, stamp, iAmStamped, onStamp, onRe
   return (
     <section className="card card--accent">
       <header className="card__head">
-        <h2>Stamp in</h2>
+        <h2>Attendance stamp</h2>
         <span className="mono muted">circuit: stamp()</span>
       </header>
 

@@ -147,3 +147,31 @@ p { margin: 0; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* ── ballot ─────────────────────────────────────────────────────────────── */
+.options { display: flex; flex-direction: column; gap: 8px; }
+.option {
+  position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-2);
+  color: var(--text); font: inherit; font-weight: 600; cursor: pointer; overflow: hidden;
+  transition: border-color 0.15s ease, transform 0.05s ease;
+}
+.option:hover:not(:disabled) { border-color: var(--accent); }
+.option:active:not(:disabled) { transform: translateY(1px); }
+.option:disabled { opacity: 0.75; cursor: not-allowed; }
+.option--lead { border-color: rgba(155, 140, 255, 0.55); }
+.option__bar {
+  position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, rgba(109, 92, 255, 0.35), rgba(155, 140, 255, 0.12));
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); pointer-events: none;
+}
+.option__label, .option__count { position: relative; z-index: 1; }
+.option__count { font-weight: 600; }
+
+.audit { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.86rem; color: var(--muted); }
+.voter {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: 10px; background: var(--bg-2); border: 1px dashed var(--line);
+}
+.voter > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.voter code { overflow-wrap: anywhere; }
+.badge--warn { background: rgba(251, 191, 36, 0.15); color: var(--warn); }

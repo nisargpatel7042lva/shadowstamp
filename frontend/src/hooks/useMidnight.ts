@@ -79,6 +79,9 @@ export function useMidnight() {
   const [ledger, setLedger] = useState<PublicLedger | null>(null);
   const [stamp, setStamp] = useState<StampState>({ status: 'idle' });
   const [myNullifier, setMyNullifier] = useState<string | null>(null);
+  // Exposed so the ballot hook can reuse the same wallet session rather than
+  // asking the user to connect twice.
+  const [providers, setProviders] = useState<unknown | null>(null);
 
   const deployedRef = useRef<Deployed | null>(null);
   const providersRef = useRef<Parameters<typeof findDeployedContract>[0] | null>(null);
@@ -166,14 +169,16 @@ export function useMidnight() {
         },
       };
 
-      providersRef.current = {
+      const built = {
         privateStateProvider,
         zkConfigProvider,
         proofProvider,
         publicDataProvider: publicDataProvider(session.indexerUri, session.indexerWsUri),
         walletProvider,
         midnightProvider,
-      } as never;
+      };
+      providersRef.current = built as never;
+      setProviders(built);
 
       walletReady = true;
       setWallet({ status: 'connected', session, prover });
@@ -196,6 +201,7 @@ export function useMidnight() {
       const err = e instanceof WalletError ? e : new WalletError('unknown', e instanceof Error ? e.message : String(e), e);
       deployedRef.current = null;
       providersRef.current = null;
+      setProviders(null);
       if (walletReady) {
         // Lace is connected; the failure was joining the contract.
         setContract({ status: 'error', error: err.message });
@@ -211,6 +217,7 @@ export function useMidnight() {
     // The user can revoke the site in Lace → Settings → dApps.
     deployedRef.current = null;
     providersRef.current = null;
+    setProviders(null);
     setWallet({ status: 'disconnected' });
     setContract({ status: 'idle' });
     setStamp({ status: 'idle' });
@@ -251,5 +258,18 @@ export function useMidnight() {
     [myNullifier, ledger],
   );
 
-  return { wallet, contract, ledger, stamp, myNullifier, iAmStamped, connect, disconnect, stampIn, resetStamp, refreshLedger };
+  return {
+    wallet,
+    contract,
+    ledger,
+    stamp,
+    myNullifier,
+    iAmStamped,
+    providers,
+    connect,
+    disconnect,
+    stampIn,
+    resetStamp,
+    refreshLedger,
+  };
 }

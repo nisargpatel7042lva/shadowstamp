@@ -13,11 +13,13 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const managed = resolve(here, '..', '..', 'contracts', 'managed', 'shadowstamp');
+const managedRoot = resolve(here, '..', '..', 'contracts', 'managed');
+const managed = resolve(managedRoot, 'shadowstamp');
+const managedBallot = resolve(managedRoot, 'shadowballot');
 const publicDir = resolve(here, '..', 'public');
 const generatedDir = resolve(here, '..', 'src', 'generated', 'shadowstamp');
 
-if (!existsSync(resolve(managed, 'keys'))) {
+if (!existsSync(resolve(managed, 'keys')) || !existsSync(resolve(managedBallot, 'keys'))) {
   console.error(`✗ ${managed}/keys not found — run \`npm run compile\` in the repo root first.`);
   process.exit(1);
 }
@@ -29,7 +31,21 @@ const copy = (from, to, label) => {
   console.log(`✓ synced ${label}`);
 };
 
-copy(resolve(managed, 'contract'), resolve(generatedDir, 'contract'), 'managed/contract → src/generated/shadowstamp/contract');
+copy(resolve(managed, 'contract'), resolve(generatedDir, 'contract'), 'shadowstamp/contract → src/generated');
+copy(
+  resolve(managedBallot, 'contract'),
+  resolve(here, '..', 'src', 'generated', 'shadowballot', 'contract'),
+  'shadowballot/contract → src/generated',
+);
+
+// Both contracts' keys and ZKIR are served flat from the app origin, which is
+// what FetchZkConfigProvider fetches from. Circuit names are unique across the
+// two contracts, so a single keys/ and zkir/ directory is unambiguous.
 for (const dir of ['keys', 'zkir']) {
-  copy(resolve(managed, dir), resolve(publicDir, dir), `managed/${dir} → public/${dir}`);
+  const dest = resolve(publicDir, dir);
+  rmSync(dest, { recursive: true, force: true });
+  mkdirSync(dest, { recursive: true });
+  cpSync(resolve(managed, dir), dest, { recursive: true });
+  cpSync(resolve(managedBallot, dir), dest, { recursive: true });
+  console.log(`✓ synced both contracts' ${dir} → public/${dir}`);
 }
